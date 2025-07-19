@@ -6,6 +6,7 @@ from models.model import Net_timesnet_sample_onetimesnet
 from models.model import PolicyNet
 from models.smoe_config import SpatialMoEConfig
 from models.gate import SpatialLatentTensorGate2d
+from utils import mdtp
 
 class TrainerMAB:
     def __init__(self, batch_size, candidate_lengths, node_num, in_features, out_features,
@@ -58,7 +59,7 @@ class TrainerMAB:
         ).to(device)
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = mdtp.mae_weight
 
     def train(self, train_x, train_y):
         """
@@ -75,20 +76,24 @@ class TrainerMAB:
         # 拼接成策略网络输入 (B, 2*N*F)
         state = torch.cat([bike_feat, taxi_feat], dim=1)          # shape: (B, 2*N*F)
 
-        # 输入策略网络，输出长度选择概率分布
-        probs = self.policy(state)  # shape: (B, num_lengths)
-
-        m = torch.distributions.Categorical(probs)
-        actions = m.sample()  # shape: (B,)
-        log_probs = m.log_prob(actions)  # shape: (B,)
-
-        # 根据选中的长度进行截断和预测
         all_losses = []
         ref_losses = []
+        log_probs = []
+        h = None  # LSTM 隐藏状态初始化
         for i in range(self.batch_size):
-            chosen_len = self.candidate_lengths[actions[i]]
+
+            # 输入策略网络，输出长度选择概率分布
+            x = state[i, :].unsqueeze(0).unsqueeze(0)
+            probs, h = self.policy(x, h)
+            m = torch.distributions.Categorical(probs)
+            action = m.sample()            # shape: (1,)
+            log_prob = m.log_prob(action) # shape: (1,)
+            log_probs.append(log_prob)
+
+            chosen_len = self.candidate_lengths[action.item()]
             ref_len = max(self.candidate_lengths)
-            
+
+            # 截取对应长度的输入
             bike_in_i = bike_in[i:i+1, -chosen_len:, :, :]
             bike_adj_i = bike_adj[i:i+1, -chosen_len:, :, :]
             taxi_in_i = taxi_in[i:i+1, -chosen_len:, :, :]
@@ -111,14 +116,15 @@ class TrainerMAB:
 
         # 奖励为负的 delta loss
         rewards = torch.stack([ref_losses[i] - all_losses[i] for i in range(self.batch_size)]).detach()
-        rewards = (rewards - rewards.mean()) * 1e6
+        log_probs = torch.stack(log_probs).squeeze()
+        rewards = (rewards) * 1e4
         loss_rl = -(log_probs * rewards).mean()
 
         self.optimizer.zero_grad()
         loss_rl.backward()
         torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.gradient_clip)
         self.optimizer.step()
-
+        # print(rewards.sum().item())
         return loss_rl.item(), rewards.mean().item()
 
     @torch.no_grad()

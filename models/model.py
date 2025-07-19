@@ -8,21 +8,34 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# class PolicyNet(nn.Module):
+#     def __init__(self, input_dim, hidden_dim, num_arms):
+#         super(PolicyNet, self).__init__()
+#         self.fc1 = nn.Linear(input_dim, hidden_dim)
+#         self.fc2 = nn.Linear(hidden_dim, num_arms)
+
+#     def forward(self, x):
+#         """
+#         输入: x: [B, input_dim]，例如节点特征展平后的输入状态
+#         输出: 每个 arm 的 softmax 概率 [B, num_arms]
+#         """
+#         x = F.relu(self.fc1(x))
+#         logits = self.fc2(x)
+#         probs = F.softmax(logits, dim=-1)
+#         return probs
+
 class PolicyNet(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_arms):
-        super(PolicyNet, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, num_arms)
+        super().__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, num_arms)
 
-    def forward(self, x):
-        """
-        输入: x: [B, input_dim]，例如节点特征展平后的输入状态
-        输出: 每个 arm 的 softmax 概率 [B, num_arms]
-        """
-        x = F.relu(self.fc1(x))
-        logits = self.fc2(x)
-        probs = F.softmax(logits, dim=-1)
-        return probs
+    def forward(self, x, hidden=None):
+        # x: (B, 1, input_dim)
+        out, hidden = self.lstm(x, hidden)
+        logits = self.fc(out[:, -1])  # (B, num_lengths)
+        probs = torch.softmax(logits, dim=-1)
+        return probs, hidden
 
 
 class Net_timesnet_sample_onetimesnet(nn.Module):

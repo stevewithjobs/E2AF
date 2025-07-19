@@ -263,26 +263,56 @@ def mape(preds, labels, mask):
     else:
         return torch.tensor(0)
     
-def mae_weight(preds, labels, mask, a=1, r=1):
-    """
-    Args:
-        preds: 预测值 (batch_size, num_steps, ...)
-        labels: 真实值 (batch_size, num_steps, ...)
-        mask: 掩码 (batch_size, num_steps, ...)
-        a: 等比数列首项，预测第一步的权重
-        r: 等比数列公比，控制权重的递减速率
-    """
-    assert preds.shape == labels.shape == mask.shape
-    num_steps = preds.size(1)
-    weights = a * torch.pow(r, torch.arange(num_steps, dtype=torch.float32)).to(preds.device)
-    # weights = weights.view(1, num_steps, 1)
+# def mae_weight(preds, labels, mask, a=1, r=1):
+#     """
+#     Args:
+#         preds: 预测值 (batch_size, num_steps, ...)
+#         labels: 真实值 (batch_size, num_steps, ...)
+#         mask: 掩码 (batch_size, num_steps, ...)
+#         a: 等比数列首项，预测第一步的权重
+#         r: 等比数列公比，控制权重的递减速率
+#     """
+#     assert preds.shape == labels.shape == mask.shape
+#     num_steps = preds.size(1)
+#     weights = a * torch.pow(r, torch.arange(num_steps, dtype=torch.float32)).to(preds.device)
+#     # weights = weights.view(1, num_steps, 1)
     
+#     if torch.sum(mask) != 0:
+#         abs_diff = torch.abs(labels - preds)
+#         # weighted_diff = abs_diff * weights * mask
+#         # avg_mae = torch.sum(weighted_diff) / torch.sum(mask)
+#         mae_per_step = torch.sum(abs_diff * mask, dim=(0, 2)) / torch.sum(mask, dim=(0, 2))  # 每步的 MAE
+#         weighted_mae = mae_per_step * weights  # 加权后的 MAE
+#         avg_mae = torch.sum(weighted_mae) / torch.sum(weights)
+#         return avg_mae
+#     else:
+#         return torch.tensor(0.0, device=preds.device)
+
+def mae_weight(preds, labels, mask=None, a=1, r=1):
+    """
+    加权 MAE 计算，可选 mask。
+
+    Args:
+        preds: 预测值 (B, T, N)
+        labels: 真实值 (B, T, N)
+        mask: 掩码 (B, T, N)，可为 None（表示全参与）
+        a: 权重的首项
+        r: 等比公比，控制时间步的衰减权重
+
+    Returns:
+        加权 MAE（标量）
+    """
+    assert preds.shape == labels.shape
+    if mask is None:
+        mask = torch.ones_like(preds)
+
+    num_steps = preds.size(1)
+    weights = a * torch.pow(r, torch.arange(num_steps, dtype=torch.float32)).to(preds.device)  # (T,)
+
     if torch.sum(mask) != 0:
-        abs_diff = torch.abs(labels - preds)
-        # weighted_diff = abs_diff * weights * mask
-        # avg_mae = torch.sum(weighted_diff) / torch.sum(mask)
-        mae_per_step = torch.sum(abs_diff * mask, dim=(0, 2)) / torch.sum(mask, dim=(0, 2))  # 每步的 MAE
-        weighted_mae = mae_per_step * weights  # 加权后的 MAE
+        abs_diff = torch.abs(labels - preds)  # (B, T, N)
+        mae_per_step = torch.sum(abs_diff * mask, dim=(0, 2)) / torch.sum(mask, dim=(0, 2))  # (T,)
+        weighted_mae = mae_per_step * weights
         avg_mae = torch.sum(weighted_mae) / torch.sum(weights)
         return avg_mae
     else:
