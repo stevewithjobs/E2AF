@@ -4,6 +4,27 @@ from models.expert_s import Generator
 from models.TimesNet import Model_onetimenet
 from models.smoe import GatedSpatialMoE2d
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class PolicyNet(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_arms):
+        super(PolicyNet, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, num_arms)
+
+    def forward(self, x):
+        """
+        输入: x: [B, input_dim]，例如节点特征展平后的输入状态
+        输出: 每个 arm 的 softmax 概率 [B, num_arms]
+        """
+        x = F.relu(self.fc1(x))
+        logits = self.fc2(x)
+        probs = F.softmax(logits, dim=-1)
+        return probs
+
+
 class Net_timesnet_sample_onetimesnet(nn.Module):
     def __init__(self, batch_size, window_size, node_num, in_features, out_features, lstm_features, smoe_config, pred_size):
         super(Net_timesnet_sample_onetimesnet, self).__init__()

@@ -14,7 +14,7 @@ import shutil
 parser = argparse.ArgumentParser()
 # parser.add_argument('--device', type=str, default='cuda:4', help='GPU setting')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-parser.add_argument('--window_size', type=int, default=24, help='window size')
+parser.add_argument('--window_size', type=int, default=16, help='window size')
 parser.add_argument('--pred_size', type=int, default=4, help='pred size')
 parser.add_argument('--node_num', type=int, default=231, help='number of node to predict')
 parser.add_argument('--in_features', type=int, default=2, help='GCN input dimension')
@@ -25,10 +25,10 @@ parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight d
 parser.add_argument('--epochs', type=int, default=1000, help='epoch')
 parser.add_argument('--gradient_clip', type=int, default=5, help='gradient clip')
 parser.add_argument('--pad', type=bool, default=False, help='whether padding with last batch sample')
-parser.add_argument('--bike_base_path', type=str, default='./data/bike', help='bike data path')
-parser.add_argument('--taxi_base_path', type=str, default='./data/taxi', help='taxi data path')
+parser.add_argument('--bike_base_path', type=str, default='./data/nyc/bike', help='bike data path')
+parser.add_argument('--taxi_base_path', type=str, default='./data/nyc/taxi', help='taxi data path')
 parser.add_argument('--seed', type=int, default=99, help='random seed')
-parser.add_argument('--save', type=str, default='./checkpoints/exp_nyc_24/', help='save path')
+parser.add_argument('--save', type=str, default='./checkpoints/exp_nyc_16/', help='save path')
 parser.add_argument('--smoe_start_epoch', type=int, default=99, help='smoe start epoch')
 parser.add_argument('--gpus', type=str, default='4', help='gpu')
 parser.add_argument('--log', type=str, default='0.log', help='log name')
@@ -169,9 +169,9 @@ def main():
                        taxi_in_shots[:, -args.window_size:, :, :].contiguous(), taxi_adj[:, -args.window_size:, :, :].contiguous())
             # if you want set you own parameters, delete following default parameter setting code
             lr = 0.001
-            if epoch > 60:
+            if epoch > 50:
                 lr = 0.0001
-            if epoch > 120:
+            if epoch > 100:
                 lr = 0.00001
             wd = lr / 10
             # if early_stopping.counter > 10:

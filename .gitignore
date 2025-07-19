@@ -10,10 +10,7 @@ __pycache__/
 
 # ========== Checkpoints & Models ==========
 checkpoints/
-*.pt
-*.pth
-*.ckpt
-*.onnx
+checkpoint.pt
 
 # ========== Data & Outputs ==========
 data/
