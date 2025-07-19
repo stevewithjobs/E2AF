@@ -12,7 +12,7 @@ import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--candidate_lengths', type=str, default='4,8,16,24')
+parser.add_argument('--candidate_lengths', type=str, default='4,8,24')
 parser.add_argument('--pred_size', type=int, default=4)
 parser.add_argument('--node_num', type=int, default=231)
 parser.add_argument('--in_features', type=int, default=2)
