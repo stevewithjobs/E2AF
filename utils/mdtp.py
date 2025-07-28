@@ -97,7 +97,8 @@ class MyDataset_nstponline(Dataset):
 
         for i in range(self.batch_size):
             # 获取滑动窗口的输入数据
-            start_idx = i * self.subset_size + index     
+            start_idx = i * self.subset_size + index 
+            # start_idx = i + index    
             end_idx = start_idx + self.window_size
             batch_input.append(torch.tensor(self.data[start_idx:end_idx], dtype=torch.float))  # 转换为 Tensor
 
@@ -239,15 +240,21 @@ class MyDataset_mmsm(Dataset):
 #     else:
 #         return torch.tensor(0)
 
-def mae(preds, labels, mask):
+def mae(preds, labels, mask=None):
+    if mask is None:
+        mask = torch.ones_like(preds)
     if torch.sum(mask) != 0:
+        mask = mask.bool()  # 确保 mask 是布尔类型
         avg_mae = torch.mean(torch.abs(labels[mask] - preds[mask]))
         return avg_mae
     else:
         return torch.tensor(0)
 
-def rmse(preds, labels, mask):
+def rmse(preds, labels, mask=None):
+    if mask is None:
+        mask = torch.ones_like(preds)
     if torch.sum(mask) != 0:
+        mask = mask.bool()
         avg_rmse = torch.sqrt(torch.mean((labels[mask] - preds[mask]) ** 2))
         return avg_rmse
     else:
@@ -288,7 +295,7 @@ def mape(preds, labels, mask):
 #     else:
 #         return torch.tensor(0.0, device=preds.device)
 
-def mae_weight(preds, labels, mask=None, a=1, r=1):
+def mae_weight(preds, labels, mask=None, a=1, r=1.0):
     """
     加权 MAE 计算，可选 mask。
 
