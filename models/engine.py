@@ -226,7 +226,7 @@ class Trainer:
         # self.model.gcn_output2.retain_grad()
 
         # model forward
-        bike_start_predict, bike_end_predict, taxi_start_predict, taxi_end_predict = self.model(input, 24)
+        bike_start_predict, bike_end_predict, taxi_start_predict, taxi_end_predict = self.model(input)
 
         # === Step 2: Compute main task loss ===
         bike_real, taxi_real = real[0], real[1]
@@ -241,7 +241,7 @@ class Trainer:
         # Weighted sum of losses
         main_loss = (
             taxi_start_loss_rmse + taxi_end_loss_rmse +
-            bike_start_loss_rmse + bike_end_loss_rmse
+            (bike_start_loss_rmse + bike_end_loss_rmse) * 2
         )
 
         # Backprop main task loss (retain graph for additional gradients)
@@ -288,7 +288,7 @@ class Trainer:
     def val(self, input, real, epoch):
         self.model.eval()
         t1 = time.time()
-        bike_start_predict, bike_end_predict, taxi_start_predict, taxi_end_predict = self.model(input, 24)
+        bike_start_predict, bike_end_predict, taxi_start_predict, taxi_end_predict = self.model(input)
         t2 = time.time()
         bike_real, taxi_real = real[0], real[1]
 

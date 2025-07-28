@@ -426,39 +426,104 @@ from torch import nn
 from torch.nn import init
 
 
-class GraphConvolution(nn.Module):
-    def __init__(self, window_size, in_features, out_features):
-        super(GraphConvolution, self).__init__()
+# class GraphConvolution(nn.Module):
+#     def __init__(self, window_size, in_features, out_features):
+#         super(GraphConvolution, self).__init__()
+#         self.weights = nn.Parameter(
+#             torch.Tensor(window_size, in_features, out_features)
+#         )
+#         self._reset_parameters()
+
+#     def _reset_parameters(self):
+#         init.xavier_uniform_(self.weights)
+
+#     def forward(self, adjacency, nodes):
+#         """
+#         :param adjacency: FloatTensor (batch_size, window_size, node_num, node_num)
+#         :param nodes: FloatTensor (batch_size, window_size, node_num, in_features)
+#         :return output: FloatTensor (batch_size, window_size, node_num, out_features)
+#         """
+#         batch_size = adjacency.size(0)
+#         window_size, in_features, out_features = self.weights.size()
+#         weights = self.weights.unsqueeze(0).expand(batch_size, window_size, in_features, out_features)
+#         output = adjacency.matmul(nodes).matmul(weights)
+#         return output
+
+# class Generator(nn.Module):
+#     def __init__(self, window_size, node_num, in_features, out_features):
+#         super(Generator, self).__init__()
+#         self.gcn = GraphConvolution(window_size, in_features, out_features)
+
+#     def forward(self, x_in, adj):
+#         """
+#         x_in:  (B, T, N, in_features)
+#         adj:   (B, T, N, N)
+#         out:   (B, T, out_features, N)
+#         """
+#         B, T, N = x_in.shape[:3]
+#         device = x_in.device
+
+#         eye = torch.eye(N, device=device).unsqueeze(0).unsqueeze(0).expand(B, T, N, N)
+#         adj = adj + eye
+#         deg_inv_sqrt = adj.sum(dim=-1, keepdim=True).pow(-0.5)
+#         deg_inv_sqrt[torch.isinf(deg_inv_sqrt)] = 0.0
+#         norm_adj = deg_inv_sqrt * adj * deg_inv_sqrt.transpose(-1, -2)
+#         feat = self.gcn(norm_adj, x_in)  # -> (B, T, N, F)
+#         return feat 
+    
+class GraphConvolutionMultiExpert(nn.Module):
+    def __init__(self, window_size, in_features, out_features, num_experts):
+        super().__init__()
+        self.num_experts = num_experts
+        # weights: [E, T, C_in, C_out]
         self.weights = nn.Parameter(
-            torch.Tensor(window_size, in_features, out_features)
+            torch.Tensor(num_experts, window_size, in_features, out_features)
         )
         self._reset_parameters()
 
     def _reset_parameters(self):
         init.xavier_uniform_(self.weights)
 
-    def forward(self, adjacency, nodes):
+    def forward(self, adj, x):
         """
-        :param adjacency: FloatTensor (batch_size, window_size, node_num, node_num)
-        :param nodes: FloatTensor (batch_size, window_size, node_num, in_features)
-        :return output: FloatTensor (batch_size, window_size, node_num, out_features)
+        adj: [B, T, N, N]
+        x:   [B, T, N, C]
+        return: [B, T, N, E, F]
         """
-        batch_size = adjacency.size(0)
-        window_size, in_features, out_features = self.weights.size()
-        weights = self.weights.unsqueeze(0).expand(batch_size, window_size, in_features, out_features)
-        output = adjacency.matmul(nodes).matmul(weights)
-        return output
+        B, T, N, C = x.shape
+        E = self.num_experts
+        F = self.weights.shape[-1]
 
-class Generator(nn.Module):
-    def __init__(self, window_size, node_num, in_features, out_features):
-        super(Generator, self).__init__()
-        self.gcn = GraphConvolution(window_size, in_features, out_features)
+        # Step 1: expand x to [B, T, E, N, C]
+        x = x.unsqueeze(2).expand(B, T, E, N, C)
+
+        # Step 2: expand adj to [B, T, E, N, N]
+        adj = adj.unsqueeze(2).expand(B, T, E, N, N)
+
+        # Step 3: compute Ax = A @ X → [B, T, E, N, C]
+        Ax = torch.matmul(adj, x)
+
+        # Step 4: prepare weights: [E, T, C, F] → [1, T, E, C, F] → [B, T, E, C, F]
+        W = self.weights.permute(1, 0, 2, 3)     # [T, E, C, F]
+        W = W.unsqueeze(0).expand(B, -1, -1, -1, -1)  # [B, T, E, C, F]
+
+        # Step 5: matmul Ax @ W → [B, T, E, N, F]
+        out = torch.matmul(Ax, W)  # last two dims: [N, C] × [C, F] = [N, F]
+
+        # Step 6: permute to [B, T, N, E, F] for SMoE
+        out = out.permute(0, 1, 3, 2, 4)
+        return out
+
+class GeneratorMultiExpert(nn.Module):
+    def __init__(self, window_size, node_num, in_features, out_features, num_experts):
+        super().__init__()
+        self.gcn = GraphConvolutionMultiExpert(window_size, in_features, out_features, num_experts)
 
     def forward(self, x_in, adj):
         """
         x_in:  (B, T, N, in_features)
         adj:   (B, T, N, N)
-        out:   (B, T, out_features, N)
+        out:   (B, T, N, E, out_features)
         """
         B, T, N = x_in.shape[:3]
         device = x_in.device
@@ -468,43 +533,9 @@ class Generator(nn.Module):
         deg_inv_sqrt = adj.sum(dim=-1, keepdim=True).pow(-0.5)
         deg_inv_sqrt[torch.isinf(deg_inv_sqrt)] = 0.0
         norm_adj = deg_inv_sqrt * adj * deg_inv_sqrt.transpose(-1, -2)
-        feat = self.gcn(norm_adj, x_in)  # -> (B, T, N, F)
-        return feat 
-    
-# class Generator(nn.Module):
-#     def __init__(self, window_size, node_num, in_features, out_features):
-#         super(Generator, self).__init__()
-#         self.window_size = window_size
-#         self.node_num = node_num
-#         self.in_features = in_features
-#         self.out_features = out_features
-#         self.gcn = GraphConvolution(window_size, in_features, out_features)
-#         self.fc = nn.Linear(node_num * 2, node_num)
 
-#     def forward(self, bike_in_shots, bike_adj, taxi_in_shots, taxi_adj):
-#         """
-#         :param bike_in_shots: FloatTensor (batch_size, window_size, node_num, in_features)
-#         :param bike_adj: FloatTensor (batch_size, window_size, node_num, node_num)
-#         :param taxi_in_shots: FloatTensor (batch_size, window_size, node_num, in_features)
-#         :param taxi_adj: FloatTensor (batch_size, window_size, node_num, node_num)
-#         :return bike_gcn_output: FloatTensor (batch_size, node_num, node_num * out_features)
-#         :return taxi_gcn_output: FloatTensor (batch_size, node_num, node_num * out_features)
-#         """
-#         batch_size, window_size, node_num = bike_in_shots.size()[0: 3]
-#         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#         eye = torch.eye(node_num).to(device).unsqueeze(0).unsqueeze(0).expand(batch_size, window_size, node_num, node_num)
-#         bike_adj = bike_adj + eye
-#         bike_diag = bike_adj.sum(dim=-1, keepdim=True).pow(-0.5).expand(bike_adj.size()) * eye
-#         bike_adjacency = bike_diag.matmul(bike_adj).matmul(bike_diag)
-#         taxi_adj = taxi_adj + eye
-#         taxi_diag = taxi_adj.sum(dim=-1, keepdim=True).pow(-0.5).expand(taxi_adj.size()) * eye
-#         taxi_adjacency = taxi_diag.matmul(taxi_adj).matmul(taxi_diag)
-#         bike_gcn_output = self.gcn(bike_adjacency, bike_in_shots)
-#         taxi_gcn_output = self.gcn(taxi_adjacency, taxi_in_shots)
-#         bike_gcn_output = bike_gcn_output.view(batch_size, window_size, -1)
-#         taxi_gcn_output = taxi_gcn_output.view(batch_size, window_size, -1)
-#         return bike_gcn_output, taxi_gcn_output
-
+        feat = self.gcn(norm_adj, x_in)  # -> (B, T, N, E, F)
+        return feat
 
 
 

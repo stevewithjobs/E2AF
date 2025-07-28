@@ -12,14 +12,14 @@ import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--candidate_lengths', type=str, default='4,8,24')
+parser.add_argument('--candidate_lengths', type=str, default='4,8,12,16,24')
 parser.add_argument('--pred_size', type=int, default=4)
 parser.add_argument('--node_num', type=int, default=231)
 parser.add_argument('--in_features', type=int, default=2)
 parser.add_argument('--out_features', type=int, default=16)
 parser.add_argument('--lstm_features', type=int, default=256)
-parser.add_argument('--learning_rate', type=float, default=0.001)
-parser.add_argument('--weight_decay', type=float, default=0.0001)
+parser.add_argument('--learning_rate', type=float, default=0.0001)
+parser.add_argument('--weight_decay', type=float, default=0.00001)
 parser.add_argument('--epochs', type=int, default=1000)
 parser.add_argument('--gradient_clip', type=int, default=5)
 parser.add_argument('--bike_base_path', type=str, default='./data/nyc/bike')
@@ -59,9 +59,11 @@ def main():
                         args.smoe_start_epoch, args.pred_size)
 
     best_reward = float('-inf')
+    best_loss = float('inf')
     for epoch in range(1, args.epochs + 1):
         epoch_losses = []
         epoch_rewards = []
+        engine.count = 0  # Set the current epoch for the engine
         for iter, (bike_adj, bike_node, taxi_adj, taxi_node) in enumerate(zip(bike_adj_loader, bike_loader, taxi_adj_loader, taxi_loader)):
             bike_in, bike_out = bike_node
             taxi_in, taxi_out = taxi_node
@@ -71,18 +73,18 @@ def main():
             loss, reward = engine.train(train_x, train_y)
             epoch_losses.append(loss)
             epoch_rewards.append(reward)
-            # print(f"Epoch {epoch:03d} Iter {iter:03d} Loss: {loss:.10f}")
-            # print(f"Epoch {epoch:03d} Iter {iter:03d} Reward: {reward:.10f}")
+            print(f"Epoch {epoch:03d} Iter {iter:03d} Loss: {loss:.10f}")
+            print(f"Epoch {epoch:03d} Iter {iter:03d} Reward: {reward:.10f}")
 
         mean_loss = np.mean(epoch_losses)
         mean_reward = np.mean(epoch_rewards)
 
-        # print(f"Epoch {epoch:03d} Mean Loss: {mean_loss:.10f}")
+        print(f"Epoch {epoch:03d} Mean Loss: {mean_loss:.10f}")
         print(f"Epoch {epoch:03d} Mean Reward: {mean_reward:.10f}")
 
-        if mean_reward > best_reward:
-            best_reward = mean_reward
-            torch.save(engine.policy.state_dict(), os.path.join(args.save, 'best_policy.pth'))
+        # if mean_reward > best_reward:
+            # best_reward = mean_reward
+        torch.save(engine.policy_net.state_dict(), os.path.join(args.save, 'best_policy.pth'))
 
 if __name__ == '__main__':
     if not os.path.exists(args.save):

@@ -14,7 +14,8 @@ import shutil
 parser = argparse.ArgumentParser()
 # parser.add_argument('--device', type=str, default='cuda:4', help='GPU setting')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-parser.add_argument('--window_size', type=int, default=16, help='window size')
+parser.add_argument('--window_size', type=int, default=24, help='window size')
+parser.add_argument('--input_size', type=int, default=8, help='input size')
 parser.add_argument('--pred_size', type=int, default=4, help='pred size')
 parser.add_argument('--node_num', type=int, default=231, help='number of node to predict')
 parser.add_argument('--in_features', type=int, default=2, help='GCN input dimension')
@@ -28,7 +29,7 @@ parser.add_argument('--pad', type=bool, default=False, help='whether padding wit
 parser.add_argument('--bike_base_path', type=str, default='./data/nyc/bike', help='bike data path')
 parser.add_argument('--taxi_base_path', type=str, default='./data/nyc/taxi', help='taxi data path')
 parser.add_argument('--seed', type=int, default=99, help='random seed')
-parser.add_argument('--save', type=str, default='./checkpoints/exp_nyc_16/', help='save path')
+parser.add_argument('--save', type=str, default='./checkpoints/exp_nyc_8/', help='save path')
 parser.add_argument('--smoe_start_epoch', type=int, default=99, help='smoe start epoch')
 parser.add_argument('--gpus', type=str, default='4', help='gpu')
 parser.add_argument('--log', type=str, default='0.log', help='log name')
@@ -125,7 +126,7 @@ def main():
     )
 
     # train the model
-    engine = Trainer(args.batch_size, args.window_size, args.node_num, args.in_features, args.out_features,
+    engine = Trainer(args.batch_size, args.input_size, args.node_num, args.in_features, args.out_features,
                      args.lstm_features, device, args.learning_rate, args.weight_decay, args.gradient_clip, args.smoe_start_epoch, args.pred_size)
     print("start training...", flush=True)
     his_loss = []
@@ -162,11 +163,11 @@ def main():
                 device)
             taxi_in_shots, taxi_out_shots, taxi_adj = taxi_in_shots.to(device), taxi_out_shots.to(device), taxi_adj.to(
                 device)
-            train_x = (bike_in_shots, bike_adj, taxi_in_shots, taxi_adj)
+
             train_y = (bike_out_shots, taxi_out_shots)
 
-            train_x = (bike_in_shots[:, -args.window_size:, :, :].contiguous(), bike_adj[:, -args.window_size:, :, :].contiguous(), 
-                       taxi_in_shots[:, -args.window_size:, :, :].contiguous(), taxi_adj[:, -args.window_size:, :, :].contiguous())
+            train_x = (bike_in_shots[:, -args.input_size:, :, :].contiguous(), bike_adj[:, -args.input_size:, :, :].contiguous(), 
+                       taxi_in_shots[:, -args.input_size:, :, :].contiguous(), taxi_adj[:, -args.input_size:, :, :].contiguous())
             # if you want set you own parameters, delete following default parameter setting code
             lr = 0.001
             if epoch > 50:
@@ -225,7 +226,9 @@ def main():
                 device)
             taxi_in_shots, taxi_out_shots, taxi_adj = taxi_in_shots.to(device), taxi_out_shots.to(device), taxi_adj.to(
                 device)
-            valid_x = (bike_in_shots, bike_adj, taxi_in_shots, taxi_adj)
+            valid_x = (bike_in_shots[:, -args.input_size:, :, :].contiguous(), bike_adj[:, -args.input_size:, :, :].contiguous(), 
+                       taxi_in_shots[:, -args.input_size:, :, :].contiguous(), taxi_adj[:, -args.input_size:, :, :].contiguous())
+            # valid_x = (bike_in_shots, bike_adj, taxi_in_shots, taxi_adj)
             valid_y = (bike_out_shots, taxi_out_shots)
             metrics, t= engine.val(valid_x, valid_y, epoch)
             infer_time += t

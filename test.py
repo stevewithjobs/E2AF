@@ -20,8 +20,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--device', type=str, default='cuda:0', help='GPU setting')
 parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--window_size', type=int, default=24, help='window size')
+parser.add_argument('--input_size', type=int, default=16, help='input size')
 parser.add_argument('--pred_size', type=int, default=4, help='pred size')
-parser.add_argument('--node_num', type=int, default=77, help='number of node to predict')
+parser.add_argument('--node_num', type=int, default=231, help='number of node to predict')
 parser.add_argument('--in_features', type=int, default=2, help='GCN input dimension')
 parser.add_argument('--out_features', type=int, default=16, help='GCN output dimension')
 parser.add_argument('--lstm_features', type=int, default=256, help='LSTM hidden feature size')
@@ -30,10 +31,10 @@ parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight d
 parser.add_argument('--epochs', type=int, default=20, help='epoch')
 parser.add_argument('--gradient_clip', type=int, default=5, help='gradient clip')
 parser.add_argument('--pad', type=bool, default=False, help='whether padding with last batch sample')
-parser.add_argument('--bike_base_path', type=str, default='./chi/bike', help='bike data path')
-parser.add_argument('--taxi_base_path', type=str, default='./chi/taxi', help='taxi data path')
+parser.add_argument('--bike_base_path', type=str, default='./data/nyc/bike', help='bike data path')
+parser.add_argument('--taxi_base_path', type=str, default='./data/nyc/taxi', help='taxi data path')
 parser.add_argument('--seed', type=int, default=99, help='random seed')
-parser.add_argument('--save', type=str, default='./checkpoints/exp_chi/best_model.pth', help='save path')
+parser.add_argument('--save', type=str, default='./checkpoints/exp_nyc_16/best_model.pth', help='save path')
 
 args = parser.parse_args()
 config = yaml.safe_load(open('config.yml'))
@@ -215,7 +216,7 @@ def main():
             block_gate_grad=True,
         )
     # model = Net_timesnet_onetimesnet(args.batch_size, args.window_size, args.node_num, args.in_features, args.out_features, args.lstm_features, base_smoe_config, args.pred_size)
-    model = Net_timesnet_sample_onetimesnet(args.batch_size, args.window_size, args.node_num, args.in_features, args.out_features, args.lstm_features, base_smoe_config, args.pred_size)
+    model = Net_timesnet_sample_onetimesnet(args.batch_size, args.input_size, args.node_num, args.in_features, args.out_features, args.lstm_features, base_smoe_config, args.pred_size)
 
     model.to(device)
     model.load_state_dict(torch.load(args.save),strict=False)
@@ -266,7 +267,7 @@ def main():
             device)
         taxi_in_shots, taxi_out_shots, taxi_adj = taxi_in_shots.to(device), taxi_out_shots.to(device), taxi_adj.to(
             device)
-        test_x = (bike_in_shots, bike_adj, taxi_in_shots, taxi_adj)
+        test_x = (bike_in_shots[:,-args.input_size:,:,:], bike_adj[:,-args.input_size:,:,:], taxi_in_shots[:,-args.input_size:,:,:], taxi_adj[:,-args.input_size:,:,:])
         
         # if iter == 0:  # 或者你想可视化前几轮都可以
         #     visualize_expert_outputs(model, bike_in_shots[:1], bike_adj[:1], taxi_in_shots[:1], taxi_adj[:1])
@@ -352,7 +353,7 @@ def main():
 
         with torch.no_grad():
             t1 = time.time()
-            bike_start, bike_end, taxi_start, taxi_end = model(test_x, 24)
+            bike_start, bike_end, taxi_start, taxi_end = model(test_x)
 
             # # 提取 6 个 expert 输出（你已有这部分）
             # bike_experts = [g(bike_in_shots, bike_adj) for g in model.bike_gcn]
@@ -391,6 +392,7 @@ def main():
         #     continue
         # if iter > 100:
         #     break
+        
         want = 0  
         bk_start_mask = bike_out_shots[0][:, want, :] != bike_start[:, want, :]
         bk_end_mask = bike_out_shots[1][:, want, :] != bike_end[:, want, :]
@@ -401,6 +403,14 @@ def main():
         bike_end_metrics = metric1(bike_end[:, want, :], bike_out_shots[1][:, want, :], bk_end_mask)
         taxi_start_metrics = metric1(taxi_start[:, want, :], taxi_out_shots[0][:, want, :], tx_start_mask)
         taxi_end_metrics = metric1(taxi_end[:, want, :], taxi_out_shots[1][:, want, :], tx_end_mask)
+
+        # bike_threshold = config['threshold'] / config['bike_volume_max']
+        # taxi_threshold = config['threshold'] / config['taxi_volume_max']
+
+        # bike_start_metrics = metric1(bike_start[:, want, :], bike_out_shots[0][:, want, :], bike_threshold)
+        # bike_end_metrics = metric1(bike_end[:, want, :], bike_out_shots[1][:, want, :], bike_threshold)
+        # taxi_start_metrics = metric1(taxi_start[:, want, :], taxi_out_shots[0][:, want, :], taxi_threshold)
+        # taxi_end_metrics = metric1(taxi_end[:, want, :], taxi_out_shots[1][:, want, :], taxi_threshold)
 
         # mask = torch.ones_like(bike_out_shots[0][:, want, :], dtype=torch.bool)
 
