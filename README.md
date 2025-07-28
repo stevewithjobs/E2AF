@@ -1,4 +1,4 @@
-# E2AEF
+# E2AF
 
 This repository implements **E2AF**: an agent-enhanced framework for online multi-source traffic flow prediction.
 
