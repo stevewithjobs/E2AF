@@ -12,7 +12,7 @@ import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=1)
-parser.add_argument('--candidate_lengths', type=str, default='4,8,12,16,24')
+parser.add_argument('--candidate_lengths', type=str, default='4,8,12,16,20,24')
 parser.add_argument('--pred_size', type=int, default=4)
 parser.add_argument('--node_num', type=int, default=231)
 parser.add_argument('--in_features', type=int, default=2)
@@ -84,7 +84,7 @@ def main():
     taxi_start_mape = []
     taxi_end_mape = []
     engine.count = 0  # Reset count for testing
-    total_time = 0.0    
+    total_time = 0.0   
     for iter, (bike_adj, bike_node, taxi_adj, taxi_node) in enumerate(zip(bike_adj_loader, bike_loader, taxi_adj_loader, taxi_loader)):
         bike_in, bike_out = bike_node
         taxi_in, taxi_out = taxi_node
@@ -95,7 +95,8 @@ def main():
         t1 = time.time()
         bike_start, bike_end, taxi_start, taxi_end = engine.test_online(test_x, test_y)  # 使用你之前定义的 test() 方法
         t2 = time.time()
-        total_time += (t2 - t1)
+        if iter > 1:
+            total_time += (t2 - t1)
         bike_start, bike_end, taxi_start, taxi_end = bike_start.unsqueeze(0).unsqueeze(0), bike_end.unsqueeze(0).unsqueeze(0), taxi_start.unsqueeze(0).unsqueeze(0), taxi_end.unsqueeze(0).unsqueeze(0)
         want = 0  
         bk_start_mask = bike_out[0][:, want, :] != bike_start[:, want, :]
@@ -156,7 +157,7 @@ def main():
     counter = Counter(engine.actions)
     print(counter)
     print(f"Total time taken for testing: {total_time:.2f} seconds")  
-    print(engine.gcntime)  
+    print(engine.time)  
 
 if __name__ == '__main__':
     main()

@@ -1,6 +1,6 @@
 # E2AEF
 
-This repository implements **E2AEF**: an agent-enhanced framework for online multi-source traffic flow prediction.
+This repository implements **E2AF**: an agent-enhanced framework for online multi-source traffic flow prediction.
 
 ## Files
 
