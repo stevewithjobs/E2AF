@@ -39,7 +39,7 @@ args = parser.parse_args()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def custom_collate_fn(batch):
-    # 因为 batch 是一个长度为 1 的列表，直接取出这个列表的第一个元素
+    # Because batch is a list of length 1, directly take out the first element of this list
     return batch
 
 def main():
